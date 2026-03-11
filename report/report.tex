@@ -10,6 +10,7 @@
 \usepackage{tcolorbox}
 \tcbuselibrary{skins, breakable}
 \usepackage{titlesec}
+\usepackage{amsmath}
 \geometry{a4paper, margin=1in}
 
 % ── Color Palette ──
@@ -43,65 +44,182 @@
 
 \title{Unsupervised Learning Project: Autoencoders on MNIST \texorpdfstring{\\[0.5em]}{ - }
 \texorpdfstring{\large }{ }Project Report}
-\author{Ahmet Enes Çiğdem (150220079) - Team Leader \and Mehmet Akif Dündar (150220015)}
+\author{Ahmet Enes \c{C}i\u{g}dem (150220079) - Team Leader \and Mehmet Akif D\"{u}ndar (150220015)}
 \date{\today}
 
 \begin{document}
 
 \maketitle
 
+%=====================================================================
 \section{Introduction}
-This report details the implementation, training, and evaluation of an autoencoder neural network for unsupervised representation learning on the MNIST dataset. In this updated study, we extend our analysis to compare different sizes of the latent space bottleneck ($16$, $32$, and $64$ dimensions), incorporating modern regularization techniques such as Batch Normalization, and observing the subsequent effects on reconstruction loss and clustering performance (K-Means).
+%=====================================================================
 
-\section{Architecture of the Autoencoder}
-An autoencoder is a neural network that learns to compress its input into a small representation and then reconstruct the original input from that compressed form. It consists of two symmetric halves:
+This report presents the full design, implementation, and evaluation of a fully connected autoencoder for unsupervised representation learning on the MNIST handwritten digit dataset. The project covers the complete pipeline:
 
-\begin{itemize}
-    \item The \textbf{\textcolor{deepblue}{Encoder}} takes the original input (in our case, a 28$\times$28 = 784-pixel image) and progressively reduces its dimensionality through a series of layers, squeezing the information down to a small vector called the \textit{latent representation}.
-    \item The \textbf{\textcolor{deepblue}{Decoder}} takes this small latent vector and expands it back up through mirrored layers, attempting to reconstruct the original 784-pixel image as faithfully as possible.
-\end{itemize}
+\begin{enumerate}
+    \item \textbf{Data loading and preprocessing} — converting raw images to normalized tensors.
+    \item \textbf{Model architecture} — designing a symmetric encoder--decoder with regularization.
+    \item \textbf{Training} — optimizing under MSE loss with the Adam optimizer.
+    \item \textbf{Evaluation} — applying K-Means clustering to latent representations and measuring cluster quality with four metrics (PMS, AD, AVC, TD).
+    \item \textbf{Visualization} — reconstructions, latent-space projections (PCA, t-SNE), and confusion matrices.
+\end{enumerate}
 
-The \textbf{latent space} (also called the bottleneck) is the compressed middle layer. Its size determines how much information the model is forced to keep: a smaller bottleneck means more compression and more loss of detail, while a larger one preserves more but can make downstream tasks like clustering harder.
+We compare three bottleneck sizes ($16$, $32$, $64$) to quantify the trade-off between reconstruction fidelity and clustering separability.
 
-Our network uses fully connected (linear) layers with \texttt{\textcolor{accentorange}{ReLU}} activation functions (which simply zero out negative values to introduce non-linearity) and \texttt{BatchNorm1d} layers (which normalize each layer's outputs to stabilize and speed up training).
+%=====================================================================
+\section{Data Preprocessing}
+%=====================================================================
 
-\begin{tcolorbox}[colback=lightblue, colframe=accentblue, title={\color{white}\textbf{Latent Space Configurations}}, fonttitle=\bfseries, coltitle=white]
-We evaluated 3 different bottleneck sizes: \textcolor{deepblue}{\textbf{16}}, \textcolor{deepblue}{\textbf{32}}, and \textcolor{deepblue}{\textbf{64}} dimensions to observe how compression level affects reconstruction quality and clustering performance.
+The MNIST dataset comprises 60{,}000 training and 10{,}000 test grayscale images, each of size $28 \times 28$ pixels.
+
+\subsection{Loading and Normalization}
+Our data pipeline uses \texttt{torchvision.datasets.MNIST} with a single transform:
+
+\begin{tcolorbox}[colback=lightgray, colframe=accentblue, title={\color{white}\textbf{Transform Pipeline}}, fonttitle=\bfseries, coltitle=white]
+\texttt{transforms.Compose([transforms.ToTensor()])}
 \end{tcolorbox}
 
+\noindent The \texttt{\textcolor{accentblue}{ToTensor()}} transform performs two critical operations:
 \begin{itemize}
-    \item \textbf{\textcolor{deepblue}{Encoder Structure:}} Compresses the 784-pixel input step by step.
-    \begin{enumerate}
-        \item Linear Layer (784 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (256 $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (64 $\rightarrow$ \texttt{latent\_dim}) — no activation function here, so the latent values can be any real number, giving the model full freedom in how it represents the data.
-    \end{enumerate}
-    \item \textbf{\textcolor{deepblue}{Decoder Structure:}} Mirrors the encoder to reconstruct the image.
-    \begin{enumerate}
-        \item Linear Layer (\texttt{latent\_dim} $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (64 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (256 $\rightarrow$ 784) $\rightarrow$ \texttt{\textcolor{successgreen}{Sigmoid}} — this squashes the output values to the [0, 1] range, matching the pixel intensity scale of the original images.
-    \end{enumerate}
+    \item Converts the raw PIL image (integer pixel values in $[0, 255]$) into a PyTorch \texttt{FloatTensor}.
+    \item Automatically \textbf{rescales} pixel values by dividing by 255, mapping them to the continuous range $[0.0, 1.0]$.
+\end{itemize}
+This normalization is essential because it aligns the input distribution with the final \texttt{Sigmoid} activation in the decoder, which also outputs values in $[0, 1]$, ensuring the MSE loss is computed on a consistent scale.
+
+No additional normalization (e.g., zero-mean, unit-variance standardization) was applied. We deliberately omit such transformations because our decoder's Sigmoid output is bounded to $[0, 1]$; standardizing inputs would shift them outside this range, breaking the reconstruction target.
+
+\subsection{Batching}
+Images are loaded in mini-batches of \textbf{256} via \texttt{DataLoader}. The training set is shuffled at each epoch to prevent the optimizer from learning ordering artifacts, while the test set is loaded in sequential order for reproducible evaluation.
+
+\subsection{Flattening}
+Each $28 \times 28$ image is flattened to a 784-dimensional vector inside the model's \texttt{forward()} method using \texttt{x.view(x.size(0), -1)}. This is necessary because our architecture uses fully connected (\texttt{nn.Linear}) layers, which expect 1D input vectors rather than 2D images. After reconstruction, the decoder output is reshaped back to the original $1 \times 28 \times 28$ shape for loss computation and visualization.
+
+%=====================================================================
+\section{Architecture of the Autoencoder}
+%=====================================================================
+
+An autoencoder is a neural network that learns a compressed representation of its input by first \textit{encoding} it into a low-dimensional latent vector, then \textit{decoding} that vector back into the original input. The network is trained to minimize the difference between input and output. If it succeeds, the latent representation must capture the essential structure of the data.
+
+Our architecture uses fully connected layers with a symmetric encoder--decoder design:
+
+\begin{tcolorbox}[colback=lightblue, colframe=accentblue, title={\color{white}\textbf{Latent Space Configurations}}, fonttitle=\bfseries, coltitle=white]
+We evaluated 3 different bottleneck sizes: \textcolor{deepblue}{\textbf{16}}, \textcolor{deepblue}{\textbf{32}}, and \textcolor{deepblue}{\textbf{64}} dimensions to study how compression level affects reconstruction quality and downstream clustering performance.
+\end{tcolorbox}
+
+\subsection{Encoder}
+The encoder compresses the 784-dimensional input step by step:
+\begin{enumerate}
+    \item \texttt{nn.Linear(784, 256)} $\rightarrow$ \texttt{nn.BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{nn.ReLU()}}
+    \item \texttt{nn.Linear(256, 64)} $\rightarrow$ \texttt{nn.BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{nn.ReLU()}}
+    \item \texttt{nn.Linear(64, latent\_dim)} — \textit{no activation function}
+\end{enumerate}
+
+The final encoder layer has \textbf{no activation function}. This is a deliberate choice: it allows the latent values to take any real number on $(-\infty, +\infty)$, giving the model maximum freedom in how it organizes the latent space. Constraining these values (e.g., with ReLU) would restrict representations to non-negative values, limiting the expressiveness of the embedding.
+
+\subsection{Decoder}
+The decoder mirrors the encoder, expanding the latent vector back to 784 dimensions:
+\begin{enumerate}
+    \item \texttt{nn.Linear(latent\_dim, 64)} $\rightarrow$ \texttt{nn.BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{nn.ReLU()}}
+    \item \texttt{nn.Linear(64, 256)} $\rightarrow$ \texttt{nn.BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{nn.ReLU()}}
+    \item \texttt{nn.Linear(256, 784)} $\rightarrow$ \texttt{\textcolor{successgreen}{nn.Sigmoid()}}
+\end{enumerate}
+
+\subsection{Why These Components?}
+
+\subsubsection{ReLU Activation}
+\texttt{\textcolor{accentorange}{ReLU}} (Rectified Linear Unit) is defined as $f(x) = \max(0, x)$. We chose it because:
+\begin{itemize}
+    \item It introduces \textbf{non-linearity}, enabling the network to learn complex, non-linear mappings. Without non-linear activations, stacking multiple linear layers would collapse into a single linear transformation, making the network no more powerful than logistic regression.
+    \item It avoids the \textbf{vanishing gradient problem} that plagues sigmoid/tanh activations in hidden layers. Since ReLU's gradient is either 0 or 1, gradients propagate efficiently during backpropagation.
+    \item It is \textbf{computationally cheap} — just a threshold operation.
 \end{itemize}
 
+\subsubsection{Sigmoid Activation (Final Layer)}
+The decoder's last layer uses \texttt{\textcolor{successgreen}{Sigmoid}}: $\sigma(x) = \frac{1}{1 + e^{-x}}$, which squashes arbitrary values into the range $[0, 1]$. This is necessary because our input pixels are normalized to $[0, 1]$ by \texttt{ToTensor()}, and the reconstruction must match this range for the MSE loss to be meaningful. Using ReLU here would allow unbounded positive outputs, creating a scale mismatch.
+
+\subsubsection{BatchNorm1d}
+\texttt{nn.BatchNorm1d} normalizes each neuron's output across the current mini-batch to have approximately zero mean and unit variance, then applies a learnable affine transformation ($\gamma \cdot \hat{x} + \beta$). We include it after every hidden linear layer for three reasons:
+\begin{itemize}
+    \item \textbf{Stabilizes training:} Prevents layer inputs from shifting unpredictably across epochs (\textit{internal covariate shift}), which can cause gradients to explode or vanish.
+    \item \textbf{Faster convergence:} The normalized activations allow the optimizer to use larger effective learning rates, reducing the number of epochs needed.
+    \item \textbf{Mild regularization:} The noise introduced by computing batch statistics acts as a lightweight regularizer, reducing overfitting without requiring Dropout.
+\end{itemize}
+
+We placed BatchNorm \textit{between} the linear layer and the activation function (\texttt{Linear $\rightarrow$ BatchNorm $\rightarrow$ ReLU}). This normalizes the pre-activation values, ensuring ReLU receives well-centered inputs and reducing the number of ``dead neurons'' (neurons that always output zero).
+
+%=====================================================================
 \section{Training Process}
-The models were trained over 50 epochs utilizing the \textcolor{accentblue}{Adam Optimizer} with a learning rate of $1 \times 10^{-3}$, a batch size of 256, and \textcolor{accentblue}{Mean Squared Error (MSE)} as the loss criterion.
+%=====================================================================
+
+\subsection{Hyperparameters}
+\begin{itemize}
+    \item \textbf{Optimizer:} \textcolor{accentblue}{Adam} — an adaptive learning rate optimizer that combines momentum (exponential moving average of gradients) with RMSProp (per-parameter learning rate scaling). Adam was chosen over vanilla SGD because it automatically adjusts learning rates per parameter, making it well-suited for problems where different features have different scales, as is the case with pixel data.
+    \item \textbf{Learning Rate:} $1 \times 10^{-3}$ — the standard default for Adam, which provides a good balance between convergence speed and stability.
+    \item \textbf{Batch Size:} 256 — large enough to provide stable gradient estimates per step, while fitting comfortably in GPU memory.
+    \item \textbf{Epochs:} 50 — sufficient for the loss curves to plateau, indicating convergence.
+    \item \textbf{Loss Function:} \textcolor{accentblue}{Mean Squared Error (MSE)}, defined as:
+    \[
+    \mathcal{L}_{\text{MSE}} = \frac{1}{N} \sum_{i=1}^{N} \| \mathbf{x}_i - \hat{\mathbf{x}}_i \|^2
+    \]
+    where $\mathbf{x}_i$ is the original image and $\hat{\mathbf{x}}_i$ is the reconstruction. MSE directly penalizes pixel-level differences, making it a natural choice for image reconstruction tasks.
+\end{itemize}
+
+\subsection{Training Loop}
+Each epoch consists of a \texttt{model.train()} pass over all training batches (forward pass, MSE computation, backpropagation, weight update via Adam), followed by a \texttt{model.eval()} pass over the test set with \texttt{torch.no\_grad()} to compute the test loss without accumulating gradients. Both train and test losses are recorded per epoch for monitoring.
 
 \begin{tcolorbox}[colback=lightgray, colframe=accentorange, title={\color{white}\textbf{Challenge Analysis}}, fonttitle=\bfseries, coltitle=white]
-The fundamental challenge consisted of finding the optimal dimensional bottleneck. A strict bottleneck (\textcolor{deepblue}{\textbf{16}}) forces the model to heavily compress semantic features, hurting pixel-perfect reconstruction but theoretically preserving clustered density. A loose bottleneck (\textcolor{deepblue}{\textbf{64}}) vastly improves perfect visual reconstruction (lowest loss) but suffers from the ``curse of dimensionality'' when running traditional K-Means clustering, preventing it from isolating generalized digit patterns.
+The fundamental challenge was finding the optimal bottleneck dimensionality. A strict bottleneck (\textcolor{deepblue}{\textbf{16}}) forces heavy compression of semantic features — the encoder must discard redundant pixel-level detail and retain only the most discriminative structure (stroke shapes, curvatures). This hurts pixel-perfect reconstruction but produces compact, well-separated latent clusters. A loose bottleneck (\textcolor{deepblue}{\textbf{64}}) allows the encoder to preserve much more fine-grained detail, yielding excellent reconstructions. However, in 64-dimensional space, distances between points become more uniform (the ``curse of dimensionality''), making K-Means clustering significantly harder.
 \end{tcolorbox}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{../results/latent_16/loss_curve.png}
-    \caption{Training and Test Loss Curves for the baseline $latent\_dim = 16$ over 50 epochs.}
+    \caption{Training and Test Loss Curves for $\text{latent\_dim} = 16$ over 50 epochs. Both curves converge and plateau, indicating that the model has been trained to convergence without overfitting.}
     \label{fig:loss_16}
 \end{figure}
 
-\section{Clustering Performance and Comparison}
-To objectively evaluate the representations, K-Means clustering ($k=10$) was applied directly to the extracted high-dimensional latent space. Due to K-Means operating independently from real classes, a Hungarian matching algorithm was used to associate the unsupervised clusters to their most likely true digit labels.
+%=====================================================================
+\section{Clustering Methodology and Performance}
+%=====================================================================
 
-The performance scaling across latent dimensions reveals a classic trade-off:
+\subsection{K-Means Clustering}
+After training, we extract latent representations for all 10{,}000 test images using the encoder. K-Means clustering ($k=10$, matching the 10 digit classes, with \texttt{n\_init=10} for robustness) is applied directly to these $d$-dimensional latent vectors (where $d \in \{16, 32, 64\}$).
+
+K-Means partitions the latent space into 10 clusters by iteratively assigning each point to its nearest centroid and re-computing centroids until convergence. Since K-Means is \textbf{unsupervised}, cluster indices are arbitrary (e.g., ``Cluster 3'' has no inherent connection to ``Digit 3'').
+
+\subsection{Hungarian Algorithm for Label Matching}
+To fairly evaluate clustering against ground-truth labels, we use the \textbf{Hungarian algorithm} (implemented via \texttt{scipy.optimize.linear\_sum\_assignment}). This algorithm solves the optimal assignment problem:
+\begin{enumerate}
+    \item Compute the $10 \times 10$ confusion matrix between true labels and cluster assignments.
+    \item Find the one-to-one mapping from clusters to digit labels that \textbf{maximizes} the total number of correct assignments (equivalently, minimizes the negative confusion matrix).
+    \item Relabel all cluster predictions according to this optimal mapping.
+\end{enumerate}
+This ensures each cluster is matched to its most representative true digit, giving a fair accuracy measurement.
+
+\subsection{Evaluation Metrics}
+Four metrics quantify clustering quality:
+
+\begin{itemize}
+    \item \textbf{PMS (Percentage of Mislabeled Samples):} After Hungarian matching, the percentage of test samples whose mapped cluster label differs from the true label. \textit{Lower is better.}
+    \[
+    \text{PMS} = \frac{\text{Number of mislabeled samples}}{\text{Total samples}} \times 100
+    \]
+    \item \textbf{AD (Average Distance):} The average squared $L_2$ distance from each test sample to its assigned cluster centroid. Measures within-cluster compactness. \textit{Lower is better.}
+    \[
+    \text{AD} = \frac{1}{N} \sum_{i=1}^{N} \| \mathbf{z}_i - \boldsymbol{\mu}_{c(i)} \|^2
+    \]
+    \item \textbf{AVC (Average Variance within Clusters):} The average per-cluster variance, computed as the mean squared distance from each cluster's points to its centroid, averaged over all clusters. \textit{Lower is better} — indicates tighter clusters.
+    \[
+    \text{AVC} = \frac{1}{K} \sum_{k=1}^{K} \frac{1}{|C_k|} \sum_{i \in C_k} \| \mathbf{z}_i - \boldsymbol{\mu}_k \|^2
+    \]
+    \item \textbf{TD (Total Distance between Centers):} The sum of squared $L_2$ distances between all pairs of cluster centroids. Measures inter-cluster separation. \textit{Higher is better} — indicates clusters are well-separated.
+    \[
+    \text{TD} = \sum_{i=1}^{K} \sum_{j=i+1}^{K} \| \boldsymbol{\mu}_i - \boldsymbol{\mu}_j \|^2
+    \]
+\end{itemize}
+
+\subsection{Results Comparison}
 
 \begin{table}[H]
     \centering
@@ -115,57 +233,70 @@ The performance scaling across latent dimensions reveals a classic trade-off:
         \midrule
         Final Train Loss (MSE)      & 0.0088      & 0.0051      & \textcolor{successgreen}{\textbf{0.0036}} \\
         Final Test Loss  (MSE)      & 0.0086      & 0.0050      & \textcolor{successgreen}{\textbf{0.0035}} \\
-        % PMS is Percentage of Mislabeled Samples
         PMS (\%)                    & \textcolor{successgreen}{\textbf{36.48}}       & 41.93       & 45.44 \\
         Average Distance (AD)       & \textcolor{successgreen}{\textbf{9.7564}}      & 11.4930     & 13.8231 \\
         Average Variance (AVC)      & \textcolor{successgreen}{\textbf{9.5422}}      & 11.2179     & 13.5350 \\
         Total Distance (TD)         & \textcolor{successgreen}{\textbf{764.8365}}    & 514.6528    & 405.9555 \\
         \bottomrule
     \end{tabular}
-    \caption{Experimental Results across Latent Dimensions. \textcolor{successgreen}{\textbf{Green bold}} highlights best performance.}
+    \caption{Experimental Results across Latent Dimensions. \textcolor{successgreen}{\textbf{Green bold}} highlights best performance per metric.}
     \label{tab:comparison}
 \end{table}
 
 \begin{tcolorbox}[colback=lightblue, colframe=deepblue, title={\color{white}\textbf{Key Finding}}, fonttitle=\bfseries, coltitle=white]
-While increasing the latent dimensionality to \textcolor{accentorange}{\textbf{64}} allows the decoder to produce near-perfect visual reconstructions (lowest MSE), it severely degrades K-Means clustering (\textcolor{red}{45.44\%} mislabeling rate vs \textcolor{successgreen}{36.48\%} at dim=16). In 64-dimensional space, data becomes sparse, average variance (AVC) expands, and global separation between cluster centers (TD) shrinks, making unsupervised grouping significantly harder. Therefore, $latent\_dim = \textcolor{successgreen}{\textbf{16}}$ presents the best structural embedding for unsupervised clustering.
+Increasing the latent dimensionality to \textcolor{accentorange}{\textbf{64}} yields the lowest reconstruction error (MSE = 0.0035), as the encoder can preserve more fine-grained pixel detail. However, this severely degrades clustering quality:
+\begin{itemize}
+    \item PMS rises from \textcolor{successgreen}{36.48\%} to \textcolor{red}{45.44\%} — nearly half of all test samples are mislabeled.
+    \item AD and AVC increase, meaning clusters become more diffuse internally.
+    \item TD drops from 764.84 to 405.96, meaning cluster centers collapse closer together, reducing inter-cluster separation.
+\end{itemize}
+This demonstrates the curse of dimensionality: in high-dimensional spaces, distances become increasingly uniform, making Euclidean-distance-based algorithms like K-Means ineffective. $\text{latent\_dim} = \textcolor{successgreen}{\textbf{16}}$ provides the best structural embedding for unsupervised clustering.
 \end{tcolorbox}
 
+%=====================================================================
 \section{Visualizations (Latent Dim = 16)}
+%=====================================================================
 
 \subsection{Reconstruction Quality}
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{../results/latent_16/reconstructions.png}
-    \caption{Original Images (Top) vs. Reconstructed Images (Bottom) at 16 dimensions.}
+    \caption{Original Images (Top) vs. Reconstructed Images (Bottom) at latent\_dim = 16. Despite compressing each 784-dimensional image into only 16 values, the reconstructions preserve the overall digit shape and stroke structure. Minor blurring is visible, which is expected given the aggressive 49$\times$ compression ratio.}
     \label{fig:reconstruction}
 \end{figure}
 
 \subsection{Latent Space Projections}
-Dimensionality reduction models (PCA and t-SNE) extracted and projected the 16-dimensional coordinates onto an interpretable 2D grid. The plots represent points colored by their True Labels.
+Since the 16-dimensional latent space cannot be visualized directly, we project it down to 2D using two dimensionality reduction techniques:
+
+\begin{itemize}
+    \item \textbf{PCA (Principal Component Analysis):} A linear method that finds the two orthogonal directions of maximum variance. It is fast and preserves global structure, but cannot capture non-linear relationships. We use \texttt{sklearn.decomposition.PCA(n\_components=2)}.
+    \item \textbf{t-SNE (t-distributed Stochastic Neighbor Embedding):} A non-linear method that converts pairwise similarities in high-dimensional space to probability distributions and minimizes the KL divergence between high- and low-dimensional distributions. It excels at preserving \textit{local} structure — nearby points in the latent space remain neighbors in the 2D projection. We use \texttt{sklearn.manifold.TSNE} with \texttt{perplexity=40} (controls the balance between local and global structure) and \texttt{max\_iter=1000}.
+\end{itemize}
 
 \begin{figure}[H]
     \centering
     \begin{minipage}{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{../results/latent_16/latent_space_pca_true.png}
-        \caption{PCA Projection}
+        \caption{PCA Projection — global structure is preserved but clusters overlap due to the linear nature of PCA.}
     \end{minipage}\hfill
     \begin{minipage}{0.48\textwidth}
         \centering
         \includegraphics[width=\textwidth]{../results/latent_16/latent_space_t-sne_true.png}
-        \caption{t-SNE Projection}
+        \caption{t-SNE Projection — non-linear optimization produces tighter, more separated clusters, revealing the true grouping quality of the latent space.}
     \end{minipage}
 \end{figure}
 
-Due to the non-linear relationship optimized by t-SNE, it successfully maps functionally similar semantic numbers far closer than linear PCA.
+The t-SNE visualization shows that the autoencoder has learned to organize digits into distinct regions of the latent space, even without ever seeing class labels during training. Visually similar digits (e.g., 4 and 9, or 3 and 5) appear closer together, which matches intuition about their structural similarity.
 
 \subsection{Confusion Matrix}
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.6\textwidth]{../results/latent_16/confusion_matrix.png}
-    \caption{Confusion Matrix mapping K-Means unsupervised clusters to True Labels.}
+    \caption{Confusion Matrix after Hungarian matching. The strong diagonal confirms the autoencoder learned digit-specific features in an unsupervised manner.}
     \label{fig:cm}
 \end{figure}
-A densely populated diagonal demonstrates that the autoencoder grouped unique digit stroke shapes into confined sectors inside the 16-dimensional manifold before the label assignment was enforced.
+
+The strong diagonal indicates that most K-Means clusters correspond well to individual digit classes after optimal label assignment. Off-diagonal counts represent digits that the autoencoder embedded close to a different digit's cluster — these are typically structurally ambiguous pairs such as 4/9 or 3/8, where shared stroke patterns cause overlap in the latent space.
 
 \end{document}
