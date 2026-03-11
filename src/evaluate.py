@@ -73,7 +73,7 @@ def plot_latent_space(latent_reps, labels, latent_dim, method='PCA'):
     if method == 'PCA':
         reducer = PCA(n_components=2)
     elif method == 't-SNE':
-        reducer = TSNE(n_components=2, random_state=42, perplexity=40, n_iter=1000)
+        reducer = TSNE(n_components=2, random_state=42, perplexity=40, max_iter=1000)
     else:
         raise ValueError("Method must be 'PCA' or 't-SNE'")
 
@@ -102,7 +102,7 @@ def plot_cluster_space(latent_reps, cluster_labels, latent_dim, method='PCA'):
     if method == 'PCA':
         reducer = PCA(n_components=2)
     elif method == 't-SNE':
-        reducer = TSNE(n_components=2, random_state=42, perplexity=40, n_iter=1000)
+        reducer = TSNE(n_components=2, random_state=42, perplexity=40, max_iter=1000)
     else:
         raise ValueError("Method must be 'PCA' or 't-SNE'")
 
