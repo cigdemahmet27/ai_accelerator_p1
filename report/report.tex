@@ -54,24 +54,33 @@
 This report details the implementation, training, and evaluation of an autoencoder neural network for unsupervised representation learning on the MNIST dataset. In this updated study, we extend our analysis to compare different sizes of the latent space bottleneck ($16$, $32$, and $64$ dimensions), incorporating modern regularization techniques such as Batch Normalization, and observing the subsequent effects on reconstruction loss and clustering performance (K-Means).
 
 \section{Architecture of the Autoencoder}
-The autoencoder is constructed using fully connected (linear) layers, partitioned into an encoder and a symmetric decoder. To stabilize training over 50 epochs and accelerate convergence, Batch Normalization layers were integrated before activation functions.
+An autoencoder is a neural network that learns to compress its input into a small representation and then reconstruct the original input from that compressed form. It consists of two symmetric halves:
+
+\begin{itemize}
+    \item The \textbf{\textcolor{deepblue}{Encoder}} takes the original input (in our case, a 28$\times$28 = 784-pixel image) and progressively reduces its dimensionality through a series of layers, squeezing the information down to a small vector called the \textit{latent representation}.
+    \item The \textbf{\textcolor{deepblue}{Decoder}} takes this small latent vector and expands it back up through mirrored layers, attempting to reconstruct the original 784-pixel image as faithfully as possible.
+\end{itemize}
+
+The \textbf{latent space} (also called the bottleneck) is the compressed middle layer. Its size determines how much information the model is forced to keep: a smaller bottleneck means more compression and more loss of detail, while a larger one preserves more but can make downstream tasks like clustering harder.
+
+Our network uses fully connected (linear) layers with \texttt{\textcolor{accentorange}{ReLU}} activation functions (which simply zero out negative values to introduce non-linearity) and \texttt{BatchNorm1d} layers (which normalize each layer's outputs to stabilize and speed up training).
 
 \begin{tcolorbox}[colback=lightblue, colframe=accentblue, title={\color{white}\textbf{Latent Space Configurations}}, fonttitle=\bfseries, coltitle=white]
-Evaluated across 3 bottleneck sizes: \textcolor{deepblue}{\textbf{16}}, \textcolor{deepblue}{\textbf{32}}, and \textcolor{deepblue}{\textbf{64}} dimensions.
+We evaluated 3 different bottleneck sizes: \textcolor{deepblue}{\textbf{16}}, \textcolor{deepblue}{\textbf{32}}, and \textcolor{deepblue}{\textbf{64}} dimensions to observe how compression level affects reconstruction quality and clustering performance.
 \end{tcolorbox}
 
 \begin{itemize}
-    \item \textbf{\textcolor{deepblue}{Encoder Structure:}}
+    \item \textbf{\textcolor{deepblue}{Encoder Structure:}} Compresses the 784-pixel input step by step.
     \begin{enumerate}
         \item Linear Layer (784 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
         \item Linear Layer (256 $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (64 $\rightarrow$ \texttt{latent\_dim}) without an activation function to allow unrestricted, continuous representations.
+        \item Linear Layer (64 $\rightarrow$ \texttt{latent\_dim}) — no activation function here, so the latent values can be any real number, giving the model full freedom in how it represents the data.
     \end{enumerate}
-    \item \textbf{\textcolor{deepblue}{Decoder Structure:}}
+    \item \textbf{\textcolor{deepblue}{Decoder Structure:}} Mirrors the encoder to reconstruct the image.
     \begin{enumerate}
         \item Linear Layer (\texttt{latent\_dim} $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
         \item Linear Layer (64 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
-        \item Linear Layer (256 $\rightarrow$ 784) $\rightarrow$ \texttt{\textcolor{successgreen}{Sigmoid}} to ensure output pixel intensities scale correctly within a [0, 1] range.
+        \item Linear Layer (256 $\rightarrow$ 784) $\rightarrow$ \texttt{\textcolor{successgreen}{Sigmoid}} — this squashes the output values to the [0, 1] range, matching the pixel intensity scale of the original images.
     \end{enumerate}
 \end{itemize}
 
