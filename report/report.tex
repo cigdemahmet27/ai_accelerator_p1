@@ -5,7 +5,41 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{float}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+\usepackage{titlesec}
 \geometry{a4paper, margin=1in}
+
+% ── Color Palette ──
+\definecolor{deepblue}{HTML}{1A3C6E}
+\definecolor{accentblue}{HTML}{2E86C1}
+\definecolor{lightblue}{HTML}{D6EAF8}
+\definecolor{accentorange}{HTML}{E67E22}
+\definecolor{lightgray}{HTML}{F2F3F4}
+\definecolor{darktext}{HTML}{2C3E50}
+\definecolor{successgreen}{HTML}{27AE60}
+
+% ── Colored Section Headings ──
+\titleformat{\section}
+  {\Large\bfseries\color{deepblue}}
+  {\thesection}{1em}{}[\color{accentblue}\titlerule]
+
+\titleformat{\subsection}
+  {\large\bfseries\color{accentblue}}
+  {\thesubsection}{1em}{}
+
+% ── Hyperlink Colors ──
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accentblue,
+  urlcolor=accentorange,
+  citecolor=successgreen
+}
+
+% ── Body Text Color ──
+\color{darktext}
 
 \title{Unsupervised Learning Project: Autoencoders on MNIST \texorpdfstring{\\[0.5em]}{ - }
 \texorpdfstring{\large }{ }Project Report}
@@ -21,27 +55,32 @@ This report details the implementation, training, and evaluation of an autoencod
 
 \section{Architecture of the Autoencoder}
 The autoencoder is constructed using fully connected (linear) layers, partitioned into an encoder and a symmetric decoder. To stabilize training over 50 epochs and accelerate convergence, Batch Normalization layers were integrated before activation functions.
+
+\begin{tcolorbox}[colback=lightblue, colframe=accentblue, title={\color{white}\textbf{Latent Space Configurations}}, fonttitle=\bfseries, coltitle=white]
+Evaluated across 3 bottleneck sizes: \textcolor{deepblue}{\textbf{16}}, \textcolor{deepblue}{\textbf{32}}, and \textcolor{deepblue}{\textbf{64}} dimensions.
+\end{tcolorbox}
+
 \begin{itemize}
-    \item \textbf{Latent Space Size:} Evaluated across 3 configurations: $16$, $32$, and $64$.
-    \item \textbf{Encoder Structure:}
+    \item \textbf{\textcolor{deepblue}{Encoder Structure:}}
     \begin{enumerate}
-        \item Linear Layer (784 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{ReLU}
-        \item Linear Layer (256 $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{ReLU}
+        \item Linear Layer (784 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
+        \item Linear Layer (256 $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
         \item Linear Layer (64 $\rightarrow$ \texttt{latent\_dim}) without an activation function to allow unrestricted, continuous representations.
     \end{enumerate}
-    \item \textbf{Decoder Structure:}
+    \item \textbf{\textcolor{deepblue}{Decoder Structure:}}
     \begin{enumerate}
-        \item Linear Layer (\texttt{latent\_dim} $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{ReLU}
-        \item Linear Layer (64 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{ReLU}
-        \item Linear Layer (256 $\rightarrow$ 784) $\rightarrow$ \texttt{Sigmoid} to ensure output pixel intensities scale correctly within a [0, 1] range.
+        \item Linear Layer (\texttt{latent\_dim} $\rightarrow$ 64) $\rightarrow$ \texttt{BatchNorm1d(64)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
+        \item Linear Layer (64 $\rightarrow$ 256) $\rightarrow$ \texttt{BatchNorm1d(256)} $\rightarrow$ \texttt{\textcolor{accentorange}{ReLU}}
+        \item Linear Layer (256 $\rightarrow$ 784) $\rightarrow$ \texttt{\textcolor{successgreen}{Sigmoid}} to ensure output pixel intensities scale correctly within a [0, 1] range.
     \end{enumerate}
 \end{itemize}
 
 \section{Training Process}
-The models were trained over 50 epochs utilizing the Adam Optimizer with a learning rate of $1 \times 10^{-3}$, a batch size of 256, and Mean Squared Error (MSE) as the loss criterion.
+The models were trained over 50 epochs utilizing the \textcolor{accentblue}{Adam Optimizer} with a learning rate of $1 \times 10^{-3}$, a batch size of 256, and \textcolor{accentblue}{Mean Squared Error (MSE)} as the loss criterion.
 
-\textbf{Challenge Analysis:} 
-The fundamental challenge consisted of finding the optimal dimensional bottleneck. A strict bottleneck (16) forces the model to heavily compress semantic features, hurting pixel-perfect reconstruction but theoretically preserving clustered density. A loose bottleneck (64) vastly improves perfect visual reconstruction (lowest loss) but suffers from the "curse of dimensionality" when running traditional K-Means clustering, preventing it from isolating generalized digit patterns.
+\begin{tcolorbox}[colback=lightgray, colframe=accentorange, title={\color{white}\textbf{Challenge Analysis}}, fonttitle=\bfseries, coltitle=white]
+The fundamental challenge consisted of finding the optimal dimensional bottleneck. A strict bottleneck (\textcolor{deepblue}{\textbf{16}}) forces the model to heavily compress semantic features, hurting pixel-perfect reconstruction but theoretically preserving clustered density. A loose bottleneck (\textcolor{deepblue}{\textbf{64}}) vastly improves perfect visual reconstruction (lowest loss) but suffers from the ``curse of dimensionality'' when running traditional K-Means clustering, preventing it from isolating generalized digit patterns.
+\end{tcolorbox}
 
 \begin{figure}[H]
     \centering
@@ -57,24 +96,30 @@ The performance scaling across latent dimensions reveals a classic trade-off:
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{lrrr}
+    \begin{tabular}{l
+        >{\columncolor{lightblue}}r
+        >{\columncolor{lightgray}}r
+        >{\columncolor{lightblue}}r}
         \toprule
-        \textbf{Metric} & \textbf{Latent 16} & \textbf{Latent 32} & \textbf{Latent 64} \\
+        \rowcolor{deepblue}
+        \textcolor{white}{\textbf{Metric}} & \textcolor{white}{\textbf{Latent 16}} & \textcolor{white}{\textbf{Latent 32}} & \textcolor{white}{\textbf{Latent 64}} \\
         \midrule
-        Final Train Loss (MSE)      & 0.0088      & 0.0051      & \textbf{0.0036} \\
-        Final Test Loss  (MSE)      & 0.0086      & 0.0050      & \textbf{0.0035} \\
+        Final Train Loss (MSE)      & 0.0088      & 0.0051      & \textcolor{successgreen}{\textbf{0.0036}} \\
+        Final Test Loss  (MSE)      & 0.0086      & 0.0050      & \textcolor{successgreen}{\textbf{0.0035}} \\
         % PMS is Percentage of Mislabeled Samples
-        PMS (\%)                    & \textbf{36.48}       & 41.93       & 45.44 \\
-        Average Distance (AD)       & \textbf{9.7564}      & 11.4930     & 13.8231 \\
-        Average Variance (AVC)      & \textbf{9.5422}      & 11.2179     & 13.5350 \\
-        Total Distance (TD)         & \textbf{764.8365}    & 514.6528    & 405.9555 \\
+        PMS (\%)                    & \textcolor{successgreen}{\textbf{36.48}}       & 41.93       & 45.44 \\
+        Average Distance (AD)       & \textcolor{successgreen}{\textbf{9.7564}}      & 11.4930     & 13.8231 \\
+        Average Variance (AVC)      & \textcolor{successgreen}{\textbf{9.5422}}      & 11.2179     & 13.5350 \\
+        Total Distance (TD)         & \textcolor{successgreen}{\textbf{764.8365}}    & 514.6528    & 405.9555 \\
         \bottomrule
     \end{tabular}
-    \caption{Experimental Results across Latent Dimensions. Bold highlights maximum performance.}
+    \caption{Experimental Results across Latent Dimensions. \textcolor{successgreen}{\textbf{Green bold}} highlights best performance.}
     \label{tab:comparison}
 \end{table}
 
-\textbf{Analysis:} While increasing the latent dimensionality to 64 allows the decoder to produce near-perfect visual reconstructions (lowest MSE), it severely degrades K-Means clustering (45.44\% mislabeling rate vs 36.48\% at dim=16). In 64-dimensional space, data becomes sparse, average variance (AVC) expands, and global separation between cluster centers (TD) shrinks, making unsupervised grouping significantly harder. Therefore, $latent\_dim = 16$ presents the best structural embedding for unsupervised clustering. 
+\begin{tcolorbox}[colback=lightblue, colframe=deepblue, title={\color{white}\textbf{Key Finding}}, fonttitle=\bfseries, coltitle=white]
+While increasing the latent dimensionality to \textcolor{accentorange}{\textbf{64}} allows the decoder to produce near-perfect visual reconstructions (lowest MSE), it severely degrades K-Means clustering (\textcolor{red}{45.44\%} mislabeling rate vs \textcolor{successgreen}{36.48\%} at dim=16). In 64-dimensional space, data becomes sparse, average variance (AVC) expands, and global separation between cluster centers (TD) shrinks, making unsupervised grouping significantly harder. Therefore, $latent\_dim = \textcolor{successgreen}{\textbf{16}}$ presents the best structural embedding for unsupervised clustering.
+\end{tcolorbox}
 
 \section{Visualizations (Latent Dim = 16)}
 
