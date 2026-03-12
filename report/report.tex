@@ -174,9 +174,25 @@ The fundamental challenge was finding the optimal bottleneck dimensionality. A s
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.7\textwidth]{../results/latent_16/loss_curve.png}
-    \caption{Training and Test Loss Curves for $\text{latent\_dim} = 16$ over 50 epochs. Both curves converge and plateau, indicating that the model has been trained to convergence without overfitting.}
+    \includegraphics[width=0.7\textwidth]{results/latent_16/loss_curve.png}
+    \caption{Training and Test Loss Curves for $\text{latent\_dim} = 16$ over 50 epochs. Both curves converge and plateau around epoch 30, indicating convergence without overfitting.}
     \label{fig:loss_16}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_32/loss_curve.png}
+        \caption{Loss Curves for $\text{latent\_dim} = 32$. Faster initial convergence than dim=16 due to larger capacity, reaching a lower final MSE.}
+        \label{fig:loss_32}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_64/loss_curve.png}
+        \caption{Loss Curves for $\text{latent\_dim} = 64$. Achieves the lowest reconstruction error across all configurations.}
+        \label{fig:loss_64}
+    \end{minipage}
 \end{figure}
 
 %=====================================================================
@@ -232,11 +248,11 @@ Four metrics quantify clustering quality:
         \textcolor{white}{\textbf{Metric}} & \textcolor{white}{\textbf{Latent 16}} & \textcolor{white}{\textbf{Latent 32}} & \textcolor{white}{\textbf{Latent 64}} \\
         \midrule
         Final Train Loss (MSE)      & 0.0088      & 0.0051      & \textcolor{successgreen}{\textbf{0.0036}} \\
-        Final Test Loss  (MSE)      & 0.0086      & 0.0050      & \textcolor{successgreen}{\textbf{0.0035}} \\
-        PMS (\%)                    & \textcolor{successgreen}{\textbf{36.48}}       & 41.93       & 45.44 \\
-        Average Distance (AD)       & \textcolor{successgreen}{\textbf{9.7564}}      & 11.4930     & 13.8231 \\
-        Average Variance (AVC)      & \textcolor{successgreen}{\textbf{9.5422}}      & 11.2179     & 13.5350 \\
-        Total Distance (TD)         & \textcolor{successgreen}{\textbf{764.8365}}    & 514.6528    & 405.9555 \\
+        Final Test Loss  (MSE)      & 0.0087      & 0.0051      & \textcolor{successgreen}{\textbf{0.0036}} \\
+        PMS (\%)                    & \textcolor{successgreen}{\textbf{37.14}}       & 44.43       & 43.27 \\
+        Average Distance (AD)       & \textcolor{successgreen}{\textbf{9.5984}}      & 11.8310     & 13.5248 \\
+        Average Variance (AVC)      & \textcolor{successgreen}{\textbf{9.3779}}      & 11.6901     & 13.1242 \\
+        Total Distance (TD)         & \textcolor{successgreen}{\textbf{755.6271}}    & 523.5956    & 404.0431 \\
         \bottomrule
     \end{tabular}
     \caption{Experimental Results across Latent Dimensions. \textcolor{successgreen}{\textbf{Green bold}} highlights best performance per metric.}
@@ -244,59 +260,114 @@ Four metrics quantify clustering quality:
 \end{table}
 
 \begin{tcolorbox}[colback=lightblue, colframe=deepblue, title={\color{white}\textbf{Key Finding}}, fonttitle=\bfseries, coltitle=white]
-Increasing the latent dimensionality to \textcolor{accentorange}{\textbf{64}} yields the lowest reconstruction error (MSE = 0.0035), as the encoder can preserve more fine-grained pixel detail. However, this severely degrades clustering quality:
+Increasing the latent dimensionality to \textcolor{accentorange}{\textbf{64}} yields the lowest reconstruction error (MSE = 0.0036), as the encoder can preserve more fine-grained pixel detail. However, this degrades clustering quality:
 \begin{itemize}
-    \item PMS rises from \textcolor{successgreen}{36.48\%} to \textcolor{red}{45.44\%} — nearly half of all test samples are mislabeled.
-    \item AD and AVC increase, meaning clusters become more diffuse internally.
-    \item TD drops from 764.84 to 405.96, meaning cluster centers collapse closer together, reducing inter-cluster separation.
+    \item PMS rises from \textcolor{successgreen}{37.14\%} to \textcolor{red}{43.27\%} — a significant increase in mislabeled samples.
+    \item AD and AVC increase (from 9.60 to 13.52, and 9.38 to 13.12 respectively), meaning clusters become more diffuse internally.
+    \item TD drops from 755.63 to 404.04, meaning cluster centers move closer together, reducing inter-cluster separation.
 \end{itemize}
-This demonstrates the curse of dimensionality: in high-dimensional spaces, distances become increasingly uniform, making Euclidean-distance-based algorithms like K-Means ineffective. $\text{latent\_dim} = \textcolor{successgreen}{\textbf{16}}$ provides the best structural embedding for unsupervised clustering.
+This demonstrates the curse of dimensionality: in high-dimensional spaces, distances become increasingly uniform, making Euclidean-distance-based algorithms like K-Means less effective. $\text{latent\_dim} = \textcolor{successgreen}{\textbf{16}}$ provides the best structural embedding for unsupervised clustering.
 \end{tcolorbox}
 
 %=====================================================================
-\section{Visualizations (Latent Dim = 16)}
+\section{Visualizations}
 %=====================================================================
 
-\subsection{Reconstruction Quality}
+\subsection{Reconstruction Quality Across Latent Dimensions}
+
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1\textwidth]{../results/latent_16/reconstructions.png}
-    \caption{Original Images (Top) vs. Reconstructed Images (Bottom) at latent\_dim = 16. Despite compressing each 784-dimensional image into only 16 values, the reconstructions preserve the overall digit shape and stroke structure. Minor blurring is visible, which is expected given the aggressive 49$\times$ compression ratio.}
-    \label{fig:reconstruction}
+    \includegraphics[width=1\textwidth]{results/latent_16/reconstructions.png}
+    \caption{Reconstruction at $\text{latent\_dim} = 16$. Despite compressing each 784-dimensional image into only 16 values (a $49\times$ compression ratio), the reconstructions preserve the overall digit shape. Minor blurring is visible, particularly on digits with fine details (e.g., 9, 5).}
+    \label{fig:recon_16}
 \end{figure}
 
-\subsection{Latent Space Projections}
-Since the 16-dimensional latent space cannot be visualized directly, we project it down to 2D using two dimensionality reduction techniques:
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_32/reconstructions.png}
+        \caption{Reconstruction at $\text{latent\_dim} = 32$. Sharper edges and finer details compared to dim=16.}
+        \label{fig:recon_32}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_64/reconstructions.png}
+        \caption{Reconstruction at $\text{latent\_dim} = 64$. Nearly indistinguishable from originals, confirming the benefit of higher capacity.}
+        \label{fig:recon_64}
+    \end{minipage}
+\end{figure}
+
+As the latent dimensionality increases, reconstructions become progressively sharper. At dim=64, the model preserves enough information to reproduce fine stroke details almost perfectly. However, as shown in Section~5, this improved reconstruction comes at the cost of worse clustering performance.
+
+\subsection{Latent Space Projections (True Labels)}
+Since the latent space cannot be visualized directly, we project it to 2D using two dimensionality reduction techniques:
 
 \begin{itemize}
-    \item \textbf{PCA (Principal Component Analysis):} A linear method that finds the two orthogonal directions of maximum variance. It is fast and preserves global structure, but cannot capture non-linear relationships. We use \texttt{sklearn.decomposition.PCA(n\_components=2)}.
-    \item \textbf{t-SNE (t-distributed Stochastic Neighbor Embedding):} A non-linear method that converts pairwise similarities in high-dimensional space to probability distributions and minimizes the KL divergence between high- and low-dimensional distributions. It excels at preserving \textit{local} structure — nearby points in the latent space remain neighbors in the 2D projection. We use \texttt{sklearn.manifold.TSNE} with \texttt{perplexity=40} (controls the balance between local and global structure) and \texttt{max\_iter=1000}.
+    \item \textbf{PCA (Principal Component Analysis):} A linear method that finds the two orthogonal directions of maximum variance. It preserves global structure but cannot capture non-linear relationships. We use \texttt{sklearn.decomposition.PCA(n\_components=2)}.
+    \item \textbf{t-SNE (t-distributed Stochastic Neighbor Embedding):} A non-linear method that minimizes KL divergence between high- and low-dimensional pairwise similarity distributions. It excels at preserving \textit{local} structure. We use \texttt{sklearn.manifold.TSNE} with \texttt{perplexity=40} and \texttt{max\_iter=1000}.
 \end{itemize}
 
 \begin{figure}[H]
     \centering
     \begin{minipage}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{../results/latent_16/latent_space_pca_true.png}
-        \caption{PCA Projection — global structure is preserved but clusters overlap due to the linear nature of PCA.}
+        \includegraphics[width=\textwidth]{results/latent_16/latent_space_pca_true.png}
+        \caption{PCA — True Labels (dim=16). Significant overlap due to PCA's linear nature.}
+        \label{fig:pca_true}
     \end{minipage}\hfill
     \begin{minipage}{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{../results/latent_16/latent_space_t-sne_true.png}
-        \caption{t-SNE Projection — non-linear optimization produces tighter, more separated clusters, revealing the true grouping quality of the latent space.}
+        \includegraphics[width=\textwidth]{results/latent_16/latent_space_t-sne_true.png}
+        \caption{t-SNE — True Labels (dim=16). Clear cluster separation reveals the autoencoder learned digit-specific features unsupervised.}
+        \label{fig:tsne_true}
     \end{minipage}
 \end{figure}
 
 The t-SNE visualization shows that the autoencoder has learned to organize digits into distinct regions of the latent space, even without ever seeing class labels during training. Visually similar digits (e.g., 4 and 9, or 3 and 5) appear closer together, which matches intuition about their structural similarity.
 
-\subsection{Confusion Matrix}
+\subsection{Latent Space Projections (K-Means Cluster Assignments)}
+To assess how well K-Means captures the structure discovered by the autoencoder, we also visualize the \textbf{cluster assignments} side by side with true labels:
+
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.6\textwidth]{../results/latent_16/confusion_matrix.png}
-    \caption{Confusion Matrix after Hungarian matching. The strong diagonal confirms the autoencoder learned digit-specific features in an unsupervised manner.}
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_16/latent_space_pca_clusters.png}
+        \caption{PCA — K-Means Clusters (dim=16). K-Means partitions the space into contiguous regions, but overlap makes boundaries ambiguous.}
+        \label{fig:pca_clusters}
+    \end{minipage}\hfill
+    \begin{minipage}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{results/latent_16/latent_space_t-sne_clusters.png}
+        \caption{t-SNE — K-Means Clusters (dim=16). Cluster assignments largely align with the true digit groups, confirming that K-Means captures meaningful structure.}
+        \label{fig:tsne_clusters}
+    \end{minipage}
+\end{figure}
+
+Comparing Figure~\ref{fig:tsne_true} and Figure~\ref{fig:tsne_clusters}, we observe that K-Means cluster boundaries align well with true digit groups for well-separated digits (0, 1, 6). However, in regions where digits overlap (e.g., the 3/5/8 area and the 4/9/7 area), K-Means assigns points to the wrong cluster, contributing to the PMS error.
+
+\subsection{Confusion Matrix Analysis}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{results/latent_16/confusion_matrix.png}
+    \caption{Confusion Matrix after Hungarian matching at $\text{latent\_dim} = 16$. The strong diagonal confirms that the autoencoder learned digit-specific features in an unsupervised manner.}
     \label{fig:cm}
 \end{figure}
 
-The strong diagonal indicates that most K-Means clusters correspond well to individual digit classes after optimal label assignment. Off-diagonal counts represent digits that the autoencoder embedded close to a different digit's cluster — these are typically structurally ambiguous pairs such as 4/9 or 3/8, where shared stroke patterns cause overlap in the latent space.
+The confusion matrix reveals digit-specific clustering performance. Some digits are clustered with high accuracy while others suffer from structural ambiguity:
+
+\begin{itemize}
+    \item \textbf{Well-clustered digits:} Digit \textbf{6} (819/958 = 85\%), digit \textbf{2} (834/1032 = 81\%), digit \textbf{3} (832/1010 = 82\%), and digit \textbf{0} (805/980 = 82\%) have distinctive shapes that the autoencoder represents uniquely in the latent space.
+    \item \textbf{Confused digit pairs:}
+    \begin{itemize}
+        \item \textbf{9 $\rightarrow$ 4:} 526 samples of digit 9 are assigned to cluster 4. Both share an upper loop connected to a vertical stroke, making them structurally very similar.
+        \item \textbf{1 $\rightarrow$ 9:} 499 samples of digit 1 are assigned to cluster 9. Both have a dominant vertical stroke as their primary feature.
+        \item \textbf{5 $\rightarrow$ 3:} 336 samples of digit 5 are assigned to cluster 3. Both digits have a curved mid-section and horizontal strokes.
+        \item \textbf{4 $\rightarrow$ 5:} 281 samples of digit 4 are assigned to cluster 5, while \textbf{5 $\rightarrow$ 8:} 243 samples of digit 5 go to cluster 8. Digit 5 is the hardest to cluster, being confused with three different digits.
+    \end{itemize}
+\end{itemize}
+
+These confusions are expected in unsupervised learning: the autoencoder encodes visual similarity, not semantic identity. Digits that share stroke patterns naturally end up close in the latent space, making them hard to separate with K-Means.
 
 \end{document}
