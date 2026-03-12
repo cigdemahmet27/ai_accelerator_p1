@@ -69,7 +69,7 @@ def plot_loss_curves(train_losses, test_losses, latent_dim):
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'results/latent_{latent_dim}/loss_curve.png', dpi=150)
+    plt.savefig(f'{evaluate.RESULTS_DIR}/latent_{latent_dim}/loss_curve.png', dpi=150)
     plt.close()
 
 
@@ -86,7 +86,7 @@ def run_experiment(latent_dim, trainloader, testloader, device, num_epochs=50):
 
     evaluate.check_results_dir(latent_dim)
     torch.save(model.state_dict(),
-               f'results/latent_{latent_dim}/autoencoder_model.pth')
+               f'{evaluate.RESULTS_DIR}/latent_{latent_dim}/autoencoder_model.pth')
 
     plot_loss_curves(train_losses, test_losses, latent_dim)
 
@@ -112,10 +112,13 @@ def run_experiment(latent_dim, trainloader, testloader, device, num_epochs=50):
         'latent_dim': latent_dim,
         'final_train_loss': train_losses[-1],
         'final_test_loss': test_losses[-1],
+        'train_losses': train_losses,
+        'test_losses': test_losses,
         'pms': metrics[0],
         'ad': metrics[1],
         'avc': metrics[2],
         'td': metrics[3],
+        'model': model,
     }
 
 
@@ -143,9 +146,9 @@ def print_comparison(all_results):
             row += f"{r[key]:>12.4f} "
         print(row)
 
-    if not os.path.exists('results'):
-        os.makedirs('results')
-    with open('results/comparison.txt', 'w') as f:
+    if not os.path.exists(evaluate.RESULTS_DIR):
+        os.makedirs(evaluate.RESULTS_DIR)
+    with open(f'{evaluate.RESULTS_DIR}/comparison.txt', 'w') as f:
         f.write(header + '\n')
         f.write("-" * len(header) + '\n')
         for key, label in [
@@ -162,13 +165,17 @@ def print_comparison(all_results):
             f.write(row + '\n')
 
 
-def main():
+def main(batch_size=256):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    trainloader, testloader = get_dataloaders(batch_size=256)
+    evaluate.set_results_dir(f'results_bs{batch_size}')
+    print(f"Batch size: {batch_size}")
+    print(f"Results directory: {evaluate.RESULTS_DIR}")
 
-    latent_dims = [16, 32, 64]
+    trainloader, testloader = get_dataloaders(batch_size=batch_size)
+
+    latent_dims = [4, 8, 10, 16, 32, 64]
     all_results = []
 
     for ld in latent_dims:
@@ -176,8 +183,29 @@ def main():
         all_results.append(result)
 
     print_comparison(all_results)
-    print("\nAll experiments completed. Results saved in 'results/' directory.")
+
+    print("\nGenerating comparison plots...")
+
+    all_loss_data = [{'latent_dim': r['latent_dim'], 'test_losses': r['test_losses']}
+                     for r in all_results]
+    evaluate.plot_combined_loss_curves(all_loss_data)
+    print("  Combined loss curves saved.")
+
+    evaluate.plot_metrics_comparison(all_results)
+    print("  Metrics comparison bar chart saved.")
+
+    models_dict = {r['latent_dim']: r['model'] for r in all_results}
+    evaluate.plot_reconstruction_comparison(models_dict, testloader, device)
+    print("  Reconstruction comparison grid saved.")
+
+    print("  Generating t-SNE comparison (this may take several minutes)...")
+    evaluate.plot_tsne_comparison(models_dict, testloader, device)
+    print("  t-SNE comparison saved.")
+
+    print(f"\nAll experiments completed. Results saved in '{evaluate.RESULTS_DIR}/' directory.")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    bs = int(sys.argv[1]) if len(sys.argv) > 1 else 256
+    main(batch_size=bs)

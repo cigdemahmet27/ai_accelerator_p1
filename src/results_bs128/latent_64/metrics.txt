@@ -1,0 +1,6 @@
+Clustering Metrics (latent_dim=64)
+=============================================
+Percentage of Mislabeled Samples (PMS): 47.06%
+Average L2 dist. to cluster centers (AD): 24.3251
+Average variation within clusters (AVC): 23.7682
+Total L2 distance between centers (TD): 725.5240
